@@ -21,10 +21,10 @@
     "symfony/validator": "^7.3",
     "symfony/yaml": "^7.3",
     "tourze/bundle-dependency": "1.*",
-    "tourze/doctrine-indexed-bundle": "0.0.*",
+    "tourze/doctrine-indexed-bundle": "1.0.*",
     "tourze/doctrine-timestamp-bundle": "0.0.*",
-    "tourze/easy-admin-enum-field-bundle": "0.0.*",
-    "tourze/easy-admin-menu-bundle": "0.1.*",
+    "tourze/easy-admin-enum-field-bundle": "1.0.*",
+    "tourze/easy-admin-menu-bundle": "1.0.*",
     "tourze/enum-extra": "1.*",
     "tourze/product-service-contracts": "0.0.*",
     "tourze/stock-manage-bundle": "0.0.*"
@@ -37,9 +37,9 @@
     "tourze/phpunit-base": "1.*",
     "tourze/phpunit-doctrine-entity": "1.*",
     "tourze/phpunit-enum": "1.*",
-    "tourze/phpunit-symfony-kernel-test": "0.0.*",
+    "tourze/phpunit-symfony-kernel-test": "1.*",
     "tourze/phpunit-symfony-unit-test": "1.*",
-    "tourze/phpunit-symfony-web-test": "0.0.*",
+    "tourze/phpunit-symfony-web-test": "1.*",
     "tourze/symfony-dependency-service-loader": "1.*"
   },
   "autoload": {
