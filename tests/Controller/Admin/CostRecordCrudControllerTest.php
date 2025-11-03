@@ -29,17 +29,6 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
         return self::getService(CostRecordCrudController::class);
     }
 
-    private EntityManagerInterface $entityManager;
-
-    protected function onSetUp(): void
-    {
-        $this->entityManager = self::getEntityManager();
-        // 规避基类 bug：AbstractWebTestCase::createAuthenticatedClient() 未正确注册客户端
-        // 该 bug 导致 WebTestCase 中的断言方法无法工作
-        // 临时方案：在派生类 onSetUp 钩子中显式初始化客户端（通过 createClient() 正确注册）
-        static::createClient();
-    }
-
     /** @return \Generator<string, array{string}> */
     public static function provideIndexPageHeaders(): \Generator
     {
@@ -115,6 +104,8 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
 
     public function testCreateCostRecord(): void
     {
+        $entityManager = self::getEntityManager();
+
         $client = static::createClient();
         $client->loginUser($this->createAdminUser('admin', 'password'));
 
@@ -140,7 +131,7 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
         $this->assertResponseRedirects('/admin/cost-record');
 
         // 验证数据库中确实创建了记录
-        $costRecord = $this->entityManager->getRepository(CostRecord::class)
+        $costRecord = $entityManager->getRepository(CostRecord::class)
             ->findOneBy(['skuId' => 'TEST-SKU-001'])
         ;
 
@@ -157,6 +148,8 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
 
     public function testEditCostRecord(): void
     {
+        $entityManager = self::getEntityManager();
+
         // 创建测试数据
         $costRecord = new CostRecord();
         $costRecord->setSkuId('TEST-SKU-002');
@@ -168,8 +161,8 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
         $costRecord->setCostType(CostType::INDIRECT);
         $costRecord->setOperator('test_user');
 
-        $this->entityManager->persist($costRecord);
-        $this->entityManager->flush();
+        $entityManager->persist($costRecord);
+        $entityManager->flush();
 
         $client = static::createClient();
         $client->loginUser($this->createAdminUser('admin', 'password'));
@@ -190,8 +183,8 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
         $this->assertResponseRedirects('/admin/cost-record');
 
         // 验证数据库中确实更新了记录
-        $this->entityManager->clear();
-        $updatedRecord = $this->entityManager->getRepository(CostRecord::class)
+        $entityManager->clear();
+        $updatedRecord = $entityManager->getRepository(CostRecord::class)
             ->find($costRecord->getId())
         ;
 
@@ -202,6 +195,8 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
 
     public function testDeleteCostRecord(): void
     {
+        $entityManager = self::getEntityManager();
+
         // 创建测试数据
         $costRecord = new CostRecord();
         $costRecord->setSkuId('TEST-SKU-003');
@@ -213,8 +208,8 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
         $costRecord->setCostType(CostType::OVERHEAD);
         $costRecord->setOperator('test_user');
 
-        $this->entityManager->persist($costRecord);
-        $this->entityManager->flush();
+        $entityManager->persist($costRecord);
+        $entityManager->flush();
 
         $recordId = $costRecord->getId();
 
@@ -234,7 +229,7 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
         $this->assertResponseRedirects('/admin/cost-record');
 
         // 验证数据库中确实删除了记录
-        $deletedRecord = $this->entityManager->getRepository(CostRecord::class)
+        $deletedRecord = $entityManager->getRepository(CostRecord::class)
             ->find($recordId)
         ;
 
@@ -243,6 +238,8 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
 
     public function testListCostRecords(): void
     {
+        $entityManager = self::getEntityManager();
+
         // 创建测试数据
         $records = [];
         for ($i = 1; $i <= 3; ++$i) {
@@ -256,10 +253,10 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
             $costRecord->setCostType(CostType::DIRECT);
             $costRecord->setOperator('test_user');
 
-            $this->entityManager->persist($costRecord);
+            $entityManager->persist($costRecord);
             $records[] = $costRecord;
         }
-        $this->entityManager->flush();
+        $entityManager->flush();
 
         $client = static::createClient();
         $client->loginUser($this->createAdminUser('admin', 'password'));

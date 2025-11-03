@@ -23,12 +23,6 @@ final class CostAllocationCrudControllerTest extends AbstractEasyAdminController
         return self::getService(CostAllocationCrudController::class);
     }
 
-    protected function onSetUp(): void
-    {
-        // 规避基类 bug：AbstractWebTestCase::createAuthenticatedClient() 未正确注册客户端
-        static::createClient();
-    }
-
     /**
      * @return iterable<string, array{string}>
      */

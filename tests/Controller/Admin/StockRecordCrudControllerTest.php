@@ -26,15 +26,6 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
         return self::getService(StockRecordCrudController::class);
     }
 
-    private EntityManagerInterface $entityManager;
-
-    protected function onSetUp(): void
-    {
-        $this->entityManager = self::getEntityManager();
-        // 规避基类 bug：AbstractWebTestCase::createAuthenticatedClient() 未正确注册客户端
-        static::createClient();
-    }
-
     /** @return \Generator<string, array{string}> */
     public static function provideIndexPageHeaders(): \Generator
     {
@@ -98,6 +89,7 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
 
     public function testCreateStockRecord(): void
     {
+        $entityManager = self::getEntityManager();
         $client = self::createClient();
         $client->loginUser($this->createAdminUser('admin', 'password'));
 
@@ -120,7 +112,7 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
         $this->assertResponseRedirects('/admin/stock-record');
 
         // 验证数据库中确实创建了记录
-        $stockRecord = $this->entityManager->getRepository(StockRecord::class)
+        $stockRecord = $entityManager->getRepository(StockRecord::class)
             ->findOneBy(['sku' => 'TEST-SKU-STOCK-001'])
         ;
 
@@ -135,6 +127,8 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
 
     public function testEditStockRecord(): void
     {
+        $entityManager = self::getEntityManager();
+
         // 创建测试数据
         $stockRecord = new StockRecord();
         $stockRecord->setSku('TEST-SKU-STOCK-002');
@@ -143,8 +137,8 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
         $stockRecord->setCurrentQuantity(45);
         $stockRecord->setUnitCost(30.00);
 
-        $this->entityManager->persist($stockRecord);
-        $this->entityManager->flush();
+        $entityManager->persist($stockRecord);
+        $entityManager->flush();
 
         $client = self::createClient();
         $client->loginUser($this->createAdminUser('admin', 'password'));
@@ -165,8 +159,8 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
         $this->assertResponseRedirects('/admin/stock-record');
 
         // 验证数据库中确实更新了记录
-        $this->entityManager->clear();
-        $updatedRecord = $this->entityManager->getRepository(StockRecord::class)
+        $entityManager->clear();
+        $updatedRecord = $entityManager->getRepository(StockRecord::class)
             ->find($stockRecord->getId())
         ;
 
@@ -177,6 +171,8 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
 
     public function testListStockRecords(): void
     {
+        $entityManager = self::getEntityManager();
+
         // 创建测试数据
         $records = [];
         for ($i = 1; $i <= 3; ++$i) {
@@ -187,10 +183,10 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
             $stockRecord->setCurrentQuantity(80 * $i);
             $stockRecord->setUnitCost(15.0 * $i);
 
-            $this->entityManager->persist($stockRecord);
+            $entityManager->persist($stockRecord);
             $records[] = $stockRecord;
         }
-        $this->entityManager->flush();
+        $entityManager->flush();
 
         $client = self::createClient();
         $client->loginUser($this->createAdminUser('admin', 'password'));
