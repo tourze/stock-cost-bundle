@@ -7,6 +7,7 @@ use Symfony\Component\HttpKernel\Bundle\Bundle;
 use Tourze\BundleDependency\BundleDependencyInterface;
 use Tourze\DoctrineIndexedBundle\DoctrineIndexedBundle;
 use Tourze\StockManageBundle\StockManageBundle;
+use Tourze\EasyAdminMenuBundle\EasyAdminMenuBundle;
 
 class StockCostBundle extends Bundle implements BundleDependencyInterface
 {
@@ -16,6 +17,7 @@ class StockCostBundle extends Bundle implements BundleDependencyInterface
             DoctrineBundle::class => ['all' => true],
             DoctrineIndexedBundle::class => ['all' => true],
             StockManageBundle::class => ['all' => true],
+            EasyAdminMenuBundle::class => ['all' => true],
         ];
     }
 }
