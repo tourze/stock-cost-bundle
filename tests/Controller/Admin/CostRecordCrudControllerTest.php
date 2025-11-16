@@ -9,6 +9,7 @@ use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\Attributes\TestWith;
+use Symfony\Component\Security\Core\User\InMemoryUser;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Tourze\PHPUnitSymfonyWebTest\AbstractEasyAdminControllerTestCase;
@@ -78,7 +79,7 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
     public function testValidationErrors(): void
     {
         $client = static::createClient();
-        $client->loginUser($this->createAdminUser('admin', 'password'));
+        $client->loginUser(new InMemoryUser('admin', 'password', ['ROLE_ADMIN']));
 
         // 访问新建页面
         $crawler = $client->request('GET', '/admin/cost-record/new');
@@ -107,7 +108,7 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
         $entityManager = self::getEntityManager();
 
         $client = static::createClient();
-        $client->loginUser($this->createAdminUser('admin', 'password'));
+        $client->loginUser(new InMemoryUser('admin', 'password', ['ROLE_ADMIN']));
 
         // 访问新建页面
         $crawler = $client->request('GET', '/admin/cost-record/new');
@@ -165,7 +166,7 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
         $entityManager->flush();
 
         $client = static::createClient();
-        $client->loginUser($this->createAdminUser('admin', 'password'));
+        $client->loginUser(new InMemoryUser('admin', 'password', ['ROLE_ADMIN']));
 
         // 访问编辑页面
         $crawler = $client->request('GET', "/admin/cost-record/{$costRecord->getId()}/edit");
@@ -214,7 +215,7 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
         $recordId = $costRecord->getId();
 
         $client = static::createClient();
-        $client->loginUser($this->createAdminUser('admin', 'password'));
+        $client->loginUser(new InMemoryUser('admin', 'password', ['ROLE_ADMIN']));
 
         // 访问删除操作（通常通过CSRF Token保护）
         /** @var CsrfTokenManagerInterface $tokenManager */
@@ -259,7 +260,7 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
         $entityManager->flush();
 
         $client = static::createClient();
-        $client->loginUser($this->createAdminUser('admin', 'password'));
+        $client->loginUser(new InMemoryUser('admin', 'password', ['ROLE_ADMIN']));
 
         // 访问列表页面
         $crawler = $client->request('GET', '/admin/cost-record');

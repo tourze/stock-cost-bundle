@@ -9,6 +9,7 @@ use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\Attributes\TestWith;
+use Symfony\Component\Security\Core\User\InMemoryUser;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Tourze\PHPUnitSymfonyWebTest\AbstractEasyAdminControllerTestCase;
 use Tourze\StockCostBundle\Controller\Admin\StockRecordCrudController;
@@ -63,7 +64,7 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
     public function testValidationErrors(): void
     {
         $client = self::createClient();
-        $client->loginUser($this->createAdminUser('admin', 'password'));
+        $client->loginUser(new InMemoryUser('admin', 'password', ['ROLE_ADMIN']));
 
         // 访问新建页面
         $crawler = $client->request('GET', '/admin/stock-record/new');
@@ -91,7 +92,7 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
     {
         $entityManager = self::getEntityManager();
         $client = self::createClient();
-        $client->loginUser($this->createAdminUser('admin', 'password'));
+        $client->loginUser(new InMemoryUser('admin', 'password', ['ROLE_ADMIN']));
 
         // 访问新建页面
         $crawler = $client->request('GET', '/admin/stock-record/new');
@@ -141,7 +142,7 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
         $entityManager->flush();
 
         $client = self::createClient();
-        $client->loginUser($this->createAdminUser('admin', 'password'));
+        $client->loginUser(new InMemoryUser('admin', 'password', ['ROLE_ADMIN']));
 
         // 访问编辑页面
         $crawler = $client->request('GET', "/admin/stock-record/{$stockRecord->getId()}/edit");
@@ -189,7 +190,7 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
         $entityManager->flush();
 
         $client = self::createClient();
-        $client->loginUser($this->createAdminUser('admin', 'password'));
+        $client->loginUser(new InMemoryUser('admin', 'password', ['ROLE_ADMIN']));
 
         // 访问列表页面
         $crawler = $client->request('GET', '/admin/stock-record');
