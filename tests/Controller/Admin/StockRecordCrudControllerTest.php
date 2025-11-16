@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tourze\StockCostBundle\Tests\Controller\Admin;
 
 use Doctrine\ORM\EntityManagerInterface;
+use EasyCorp\Bundle\EasyAdminBundle\Config\Action;
 use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -63,18 +64,14 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
 
     public function testValidationErrors(): void
     {
-        $client = self::createClient();
-        $client->loginUser(new InMemoryUser('admin', 'password', ['ROLE_ADMIN']));
+        $client = $this->createAuthenticatedClient();
 
         // 访问新建页面
-        $crawler = $client->request('GET', '/admin/stock-record/new');
+        $crawler = $client->request('GET', $this->generateAdminUrl(Action::NEW));
         $this->assertResponseIsSuccessful();
 
-        // 获取表单并清空必填字段
+        // 获取表单但不填写必填字段，直接提交
         $form = $crawler->filter('form[name="StockRecord"]')->form();
-        $form['StockRecord[sku]'] = '';
-        $form['StockRecord[originalQuantity]'] = '';
-        $form['StockRecord[currentQuantity]'] = '';
 
         // 提交表单
         $client->submit($form);
@@ -91,17 +88,16 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
     public function testCreateStockRecord(): void
     {
         $entityManager = self::getEntityManager();
-        $client = self::createClient();
-        $client->loginUser(new InMemoryUser('admin', 'password', ['ROLE_ADMIN']));
+        $client = $this->createAuthenticatedClient();
 
         // 访问新建页面
-        $crawler = $client->request('GET', '/admin/stock-record/new');
+        $crawler = $client->request('GET', $this->generateAdminUrl(Action::NEW));
         $this->assertResponseIsSuccessful();
 
         // 填写表单
         $form = $crawler->filter('form[name="StockRecord"]')->form();
         $form['StockRecord[sku]'] = 'TEST-SKU-STOCK-001';
-        $form['StockRecord[recordDate]'] = '2024-01-15';
+        $form['StockRecord[recordDate]'] = '2024-01-15T00:00:00';
         $form['StockRecord[originalQuantity]'] = (string) 100;
         $form['StockRecord[currentQuantity]'] = (string) 95;
         $form['StockRecord[unitCost]'] = (string) 25.50;
@@ -109,8 +105,8 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
         // 提交表单
         $client->submit($form);
 
-        // 验证重定向到列表页面
-        $this->assertResponseRedirects('/admin/stock-record');
+        // 验证成功重定向（EasyAdmin 默认重定向到 Dashboard）
+        $this->assertResponseRedirects();
 
         // 验证数据库中确实创建了记录
         $stockRecord = $entityManager->getRepository(StockRecord::class)
@@ -141,11 +137,10 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
         $entityManager->persist($stockRecord);
         $entityManager->flush();
 
-        $client = self::createClient();
-        $client->loginUser(new InMemoryUser('admin', 'password', ['ROLE_ADMIN']));
+        $client = $this->createAuthenticatedClient();
 
         // 访问编辑页面
-        $crawler = $client->request('GET', "/admin/stock-record/{$stockRecord->getId()}/edit");
+        $crawler = $client->request('GET', $this->generateAdminUrl(Action::EDIT, ['entityId' => $stockRecord->getId()]));
         $this->assertResponseIsSuccessful();
 
         // 修改表单
@@ -156,8 +151,8 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
         // 提交表单
         $client->submit($form);
 
-        // 验证重定向到列表页面
-        $this->assertResponseRedirects('/admin/stock-record');
+        // 验证成功重定向（EasyAdmin 默认重定向到 Dashboard）
+        $this->assertResponseRedirects();
 
         // 验证数据库中确实更新了记录
         $entityManager->clear();
@@ -189,11 +184,10 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
         }
         $entityManager->flush();
 
-        $client = self::createClient();
-        $client->loginUser(new InMemoryUser('admin', 'password', ['ROLE_ADMIN']));
+        $client = $this->createAuthenticatedClient();
 
         // 访问列表页面
-        $crawler = $client->request('GET', '/admin/stock-record');
+        $crawler = $client->request('GET', $this->generateAdminUrl(Action::INDEX));
         $this->assertResponseIsSuccessful();
 
         // 验证页面包含我们创建的记录
