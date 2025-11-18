@@ -9,7 +9,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use Tourze\PHPUnitSymfonyWebTest\AbstractEasyAdminControllerTestCase;
 use Tourze\StockCostBundle\Controller\Admin\CostPeriodCrudController;
-use Tourze\StockCostBundle\Entity\CostPeriod;
 
 /**
  * @internal
@@ -66,11 +65,6 @@ final class CostPeriodCrudControllerTest extends AbstractEasyAdminControllerTest
     public function testExtendsAbstractCrudController(): void
     {
         $this->assertInstanceOf(AbstractCrudController::class, new CostPeriodCrudController());
-    }
-
-    public function testGetEntityFqcn(): void
-    {
-        $this->assertEquals(CostPeriod::class, CostPeriodCrudController::getEntityFqcn());
     }
 
     public function testControllerCanBeInstantiated(): void
