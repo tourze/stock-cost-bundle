@@ -4,17 +4,15 @@ declare(strict_types=1);
 
 namespace Tourze\StockCostBundle\Tests\Service;
 
-use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use Tourze\PHPUnitSymfonyKernelTest\AbstractIntegrationTestCase;
 use Tourze\StockCostBundle\Entity\CostAllocation;
 use Tourze\StockCostBundle\Entity\CostPeriod;
 use Tourze\StockCostBundle\Entity\CostRecord;
 use Tourze\StockCostBundle\Enum\AllocationMethod;
 use Tourze\StockCostBundle\Enum\CostType;
 use Tourze\StockCostBundle\Exception\CostAllocationException;
-use Tourze\StockCostBundle\Repository\CostAllocationRepository;
-use Tourze\StockCostBundle\Service\Calculator\CostAllocationCalculator;
 use Tourze\StockCostBundle\Service\CostAllocationServiceImpl;
 use Tourze\StockCostBundle\Service\CostAllocationServiceInterface;
 
@@ -22,27 +20,14 @@ use Tourze\StockCostBundle\Service\CostAllocationServiceInterface;
  * @internal
  */
 #[CoversClass(CostAllocationServiceImpl::class)]
-class CostAllocationServiceImplTest extends TestCase
+#[RunTestsInSeparateProcesses]
+class CostAllocationServiceImplTest extends AbstractIntegrationTestCase
 {
     private CostAllocationServiceImpl $service;
 
-    private EntityManagerInterface $entityManager;
-
-    private CostAllocationRepository $repository;
-
-    private CostAllocationCalculator $calculator;
-
-    protected function setUp(): void
+    protected function onSetUp(): void
     {
-        $this->entityManager = $this->createMock(EntityManagerInterface::class);
-        $this->repository = $this->createMock(CostAllocationRepository::class);
-        $this->calculator = $this->createMock(CostAllocationCalculator::class);
-
-        $this->service = new CostAllocationServiceImpl(
-            $this->entityManager,
-            $this->repository,
-            $this->calculator
-        );
+        $this->service = self::getService(CostAllocationServiceImpl::class);
     }
 
     public function testImplementsInterface(): void
@@ -57,15 +42,6 @@ class CostAllocationServiceImplTest extends TestCase
             ['sku_id' => 'SKU-002', 'ratio' => 0.4],
         ];
 
-        $this->entityManager->expects($this->once())
-            ->method('persist')
-            ->with(self::isInstanceOf(CostAllocation::class))
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('flush')
-        ;
-
         $allocation = $this->service->createAllocationRule(
             'Office Rent Allocation',
             'indirect',
@@ -77,6 +53,15 @@ class CostAllocationServiceImplTest extends TestCase
         $this->assertEquals('Office Rent Allocation', $allocation->getAllocationName());
         $this->assertEquals(CostType::INDIRECT, $allocation->getSourceType());
         $this->assertEquals($targets, $allocation->getTargets());
+
+        // 验证已保存到数据库
+        self::getEntityManager()->clear();
+        $savedAllocation = self::getEntityManager()->getRepository(CostAllocation::class)
+            ->find($allocation->getId())
+        ;
+
+        $this->assertInstanceOf(CostAllocation::class, $savedAllocation);
+        $this->assertEquals('Office Rent Allocation', $savedAllocation->getAllocationName());
     }
 
     public function testAllocateCost(): void
@@ -91,27 +76,10 @@ class CostAllocationServiceImplTest extends TestCase
             ['sku_id' => 'SKU-002', 'ratio' => 0.3],
         ]);
 
+        self::getEntityManager()->persist($allocation);
+        self::getEntityManager()->flush();
+
         $effectiveDate = new \DateTimeImmutable('2024-01-01');
-
-        // 模拟 calculator 的 calculate 方法
-        $this->calculator->expects($this->once())
-            ->method('calculate')
-            ->with($allocation)
-            ->willReturn([
-                'SKU-001' => 700.00,
-                'SKU-002' => 300.00,
-            ])
-        ;
-
-        // 期望创建两条成本记录
-        $this->entityManager->expects($this->exactly(2))
-            ->method('persist')
-            ->with(self::isInstanceOf(CostRecord::class))
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('flush')
-        ;
 
         $records = $this->service->allocateCost(1000.00, $allocation, $effectiveDate);
 
@@ -121,11 +89,24 @@ class CostAllocationServiceImplTest extends TestCase
         // 验证分摊金额
         $this->assertEquals(700.00, $records[0]->getTotalCost());
         $this->assertEquals(300.00, $records[1]->getTotalCost());
+
+        // 验证记录已保存到数据库 - 按 SKU ID 查询特定记录
+        self::getEntityManager()->clear();
+        $savedRecord1 = self::getEntityManager()->getRepository(CostRecord::class)->findOneBy(['skuId' => 'SKU-001']);
+        $savedRecord2 = self::getEntityManager()->getRepository(CostRecord::class)->findOneBy(['skuId' => 'SKU-002']);
+        $this->assertInstanceOf(CostRecord::class, $savedRecord1);
+        $this->assertInstanceOf(CostRecord::class, $savedRecord2);
     }
 
     public function testAllocateCostWithPeriod(): void
     {
         $period = new CostPeriod();
+        $period->setPeriodStart(new \DateTimeImmutable('2024-01-01'));
+        $period->setPeriodEnd(new \DateTimeImmutable('2024-03-31'));
+
+        self::getEntityManager()->persist($period);
+        self::getEntityManager()->flush();
+
         $allocation = new CostAllocation();
         $allocation->setAllocationName('Test Allocation');
         $allocation->setSourceType(CostType::INDIRECT);
@@ -136,40 +117,41 @@ class CostAllocationServiceImplTest extends TestCase
             ['sku_id' => 'SKU-001', 'ratio' => 1.0],
         ]);
 
-        // 模拟 calculator 的 calculate 方法
-        $this->calculator->expects($this->once())
-            ->method('calculate')
-            ->with($allocation)
-            ->willReturn(['SKU-001' => 500.00])
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('persist')
-            ->with(self::callback(function (CostRecord $record) use ($period) {
-                return $record->getPeriod() === $period;
-            }))
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('flush')
-        ;
+        self::getEntityManager()->persist($allocation);
+        self::getEntityManager()->flush();
 
         $records = $this->service->allocateCost(500.00, $allocation, new \DateTimeImmutable());
 
         $this->assertCount(1, $records);
         $this->assertSame($period, $records[0]->getPeriod());
+
+        // 验证记录已保存到数据库
+        self::getEntityManager()->clear();
+        $savedRecord = self::getEntityManager()->getRepository(CostRecord::class)->findOneBy(['skuId' => 'SKU-001']);
+        $this->assertInstanceOf(CostRecord::class, $savedRecord);
+        $this->assertNotNull($savedRecord->getPeriod());
     }
 
     public function testGetAllocatedCostForSku(): void
     {
         $date = new \DateTimeImmutable('2024-01-01');
 
-        // 模拟仓库返回分摊成本记录
-        $this->repository->expects($this->once())
-            ->method('findAllocatedCostForSku')
-            ->with('SKU-001', $date)
-            ->willReturn(250.00)
-        ;
+        // 创建测试数据
+        $allocation = new CostAllocation();
+        $allocation->setAllocationName('Test Allocation');
+        $allocation->setSourceType(CostType::INDIRECT);
+        $allocation->setTotalAmount(1000.00);
+        $allocation->setAllocationMethod(AllocationMethod::RATIO);
+        $allocation->setAllocationDate($date);
+        $allocation->setTargets([
+            ['sku_id' => 'SKU-001', 'ratio' => 0.25],
+        ]);
+
+        self::getEntityManager()->persist($allocation);
+        self::getEntityManager()->flush();
+
+        // 执行分摊
+        $this->service->allocateCost(1000.00, $allocation, $date);
 
         $cost = $this->service->getAllocatedCost('SKU-001', $date);
 
@@ -179,12 +161,6 @@ class CostAllocationServiceImplTest extends TestCase
     public function testGetAllocatedCostForSkuReturnsZeroWhenNotFound(): void
     {
         $date = new \DateTimeImmutable('2024-01-01');
-
-        $this->repository->expects($this->once())
-            ->method('findAllocatedCostForSku')
-            ->with('SKU-999', $date)
-            ->willReturn(null)
-        ;
 
         $cost = $this->service->getAllocatedCost('SKU-999', $date);
 
@@ -199,41 +175,42 @@ class CostAllocationServiceImplTest extends TestCase
         $allocation->setTotalAmount(600.00);
         $allocation->setAllocationMethod(AllocationMethod::QUANTITY);
         $allocation->setTargets([
-            ['sku_id' => 'SKU-001', 'quantity' => 100],
-            ['sku_id' => 'SKU-002', 'quantity' => 200],
+            ['sku_id' => 'SKU-003', 'quantity' => 100],
+            ['sku_id' => 'SKU-004', 'quantity' => 200],
         ]);
 
-        // 模拟 calculator 的 calculate 方法
-        $this->calculator->expects($this->once())
-            ->method('calculate')
-            ->with($allocation)
-            ->willReturn([
-                'SKU-001' => 200.00,
-                'SKU-002' => 400.00,
-            ])
-        ;
-
-        $this->entityManager->expects($this->exactly(2))
-            ->method('persist')
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('flush')
-        ;
+        self::getEntityManager()->persist($allocation);
+        self::getEntityManager()->flush();
 
         $records = $this->service->allocateCost(600.00, $allocation, new \DateTimeImmutable());
 
         $this->assertCount(2, $records);
-        // SKU-001: 100/(100+200) * 600 = 200
-        // SKU-002: 200/(100+200) * 600 = 400
+        // SKU-003: 100/(100+200) * 600 = 200
+        // SKU-004: 200/(100+200) * 600 = 400
         $this->assertEquals(200.00, $records[0]->getTotalCost());
         $this->assertEquals(400.00, $records[1]->getTotalCost());
+
+        // 验证记录已保存到数据库 - 按 SKU ID 查询特定记录
+        self::getEntityManager()->clear();
+        $savedRecord1 = self::getEntityManager()->getRepository(CostRecord::class)->findOneBy(['skuId' => 'SKU-003']);
+        $savedRecord2 = self::getEntityManager()->getRepository(CostRecord::class)->findOneBy(['skuId' => 'SKU-004']);
+        $this->assertInstanceOf(CostRecord::class, $savedRecord1);
+        $this->assertInstanceOf(CostRecord::class, $savedRecord2);
     }
 
     public function testAllocateCostThrowsExceptionForInvalidAmount(): void
     {
         $allocation = new CostAllocation();
+        $allocation->setAllocationName('Test Allocation');
+        $allocation->setSourceType(CostType::INDIRECT);
         $allocation->setTotalAmount(1000.00);
+        $allocation->setAllocationMethod(AllocationMethod::RATIO);
+        $allocation->setTargets([
+            ['sku_id' => 'SKU-001', 'ratio' => 1.0],
+        ]);
+
+        self::getEntityManager()->persist($allocation);
+        self::getEntityManager()->flush();
 
         $this->expectException(CostAllocationException::class);
         $this->expectExceptionMessage('Total amount must be positive');
@@ -250,16 +227,8 @@ class CostAllocationServiceImplTest extends TestCase
         $allocation->setAllocationMethod(AllocationMethod::RATIO);
         $allocation->setTargets([]);
 
-        // 模拟 calculator 的 calculate 方法抛出异常
-        $this->calculator->expects($this->once())
-            ->method('calculate')
-            ->with($allocation)
-            ->willThrowException(new CostAllocationException('Allocation targets cannot be empty'))
-        ;
-
-        $this->entityManager->expects($this->never())
-            ->method('persist')
-        ;
+        self::getEntityManager()->persist($allocation);
+        self::getEntityManager()->flush();
 
         $this->expectException(CostAllocationException::class);
         $this->expectExceptionMessage('Allocation targets cannot be empty');

@@ -11,7 +11,7 @@ use Symfony\Contracts\EventDispatcher\Event;
  *
  * 当实际成本与标准成本的差异超过设定阈值时触发
  */
-class CostVarianceExceededEvent extends Event
+final class CostVarianceExceededEvent extends Event
 {
     public function __construct(
         private readonly string $skuId,

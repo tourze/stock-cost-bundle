@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Tourze\StockCostBundle\Tests\Service;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use Tourze\PHPUnitSymfonyKernelTest\AbstractIntegrationTestCase;
 use Tourze\ProductServiceContracts\SKU;
 use Tourze\StockCostBundle\Entity\CostRecord;
+use Tourze\StockCostBundle\Enum\CostStrategy;
+use Tourze\StockCostBundle\Enum\CostType;
 use Tourze\StockCostBundle\Repository\CostRecordRepository;
 use Tourze\StockCostBundle\Service\ConsistencyFixer;
 use Tourze\StockManageBundle\Entity\StockBatch;
@@ -16,16 +19,17 @@ use Tourze\StockManageBundle\Entity\StockBatch;
  * @internal
  */
 #[CoversClass(ConsistencyFixer::class)]
-class ConsistencyFixerTest extends TestCase
+#[RunTestsInSeparateProcesses]
+class ConsistencyFixerTest extends AbstractIntegrationTestCase
 {
     private ConsistencyFixer $fixer;
 
     private CostRecordRepository $repository;
 
-    protected function setUp(): void
+    protected function onSetUp(): void
     {
-        $this->repository = $this->createMock(CostRecordRepository::class);
-        $this->fixer = new ConsistencyFixer($this->repository);
+        $this->repository = self::getContainer()->get(CostRecordRepository::class);
+        $this->fixer = self::getContainer()->get(ConsistencyFixer::class);
     }
 
     public function testFixSingleRecordInconsistencyNoIssues(): void
@@ -38,6 +42,9 @@ class ConsistencyFixerTest extends TestCase
         $costRecord->setUnitCost(10.50);
         $costRecord->setQuantity(50);
         $costRecord->setTotalCost(525.00);
+        $costRecord->setCostStrategy(CostStrategy::FIFO);
+        $costRecord->setCostType(CostType::DIRECT);
+        $costRecord->setOperator('test');
         $costRecord->setStockBatch($stockBatch);
 
         $result = $this->fixer->fixSingleRecordInconsistency($costRecord);
@@ -55,6 +62,9 @@ class ConsistencyFixerTest extends TestCase
         $costRecord->setUnitCost(10.50);
         $costRecord->setQuantity(50);
         $costRecord->setTotalCost(525.00);
+        $costRecord->setCostStrategy(CostStrategy::FIFO);
+        $costRecord->setCostType(CostType::DIRECT);
+        $costRecord->setOperator('test');
         $costRecord->setStockBatch($stockBatch);
 
         $result = $this->fixer->fixSingleRecordInconsistency($costRecord);
@@ -74,6 +84,9 @@ class ConsistencyFixerTest extends TestCase
         $costRecord->setUnitCost(10.50);
         $costRecord->setQuantity(50);
         $costRecord->setTotalCost(525.00);
+        $costRecord->setCostStrategy(CostStrategy::FIFO);
+        $costRecord->setCostType(CostType::DIRECT);
+        $costRecord->setOperator('test');
         $costRecord->setStockBatch($stockBatch);
 
         $result = $this->fixer->fixSingleRecordInconsistency($costRecord);
@@ -93,6 +106,9 @@ class ConsistencyFixerTest extends TestCase
         $costRecord->setUnitCost(12.00); // 不匹配
         $costRecord->setQuantity(50);
         $costRecord->setTotalCost(600.00);
+        $costRecord->setCostStrategy(CostStrategy::FIFO);
+        $costRecord->setCostType(CostType::DIRECT);
+        $costRecord->setOperator('test');
         $costRecord->setStockBatch($stockBatch);
 
         $result = $this->fixer->fixSingleRecordInconsistency($costRecord);
@@ -110,6 +126,9 @@ class ConsistencyFixerTest extends TestCase
         $costRecord->setUnitCost(10.50);
         $costRecord->setQuantity(50);
         $costRecord->setTotalCost(525.00);
+        $costRecord->setCostStrategy(CostStrategy::FIFO);
+        $costRecord->setCostType(CostType::DIRECT);
+        $costRecord->setOperator('test');
         // 不设置 StockBatch
 
         $result = $this->fixer->fixSingleRecordInconsistency($costRecord);
@@ -119,31 +138,40 @@ class ConsistencyFixerTest extends TestCase
 
     public function testFixInconsistentRecords(): void
     {
-        $stockBatch1 = $this->createStockBatch('B001', 'SKU-001', 10.50, 100);
-        $stockBatch2 = $this->createStockBatch('B002', 'SKU-001', 12.00, 50);
+        // 清理现有数据
+        $em = self::getEntityManager();
+        $em->createQuery('DELETE FROM ' . CostRecord::class)->execute();
+        $em->createQuery('DELETE FROM ' . StockBatch::class)->execute();
 
-        // 创建有问题的记录
+        $stockBatch1 = $this->createAndPersistStockBatch('B001', 10.50, 100);
+        $stockBatch2 = $this->createAndPersistStockBatch('B002', 12.00, 50);
+
+        // 创建有问题的记录（批次号不匹配，单位成本不匹配）
         $costRecord1 = new CostRecord();
-        $costRecord1->setSkuId('SKU-002'); // SKU不匹配
-        $costRecord1->setBatchNo('B001');
+        $costRecord1->setSkuId('SKU-001');
+        $costRecord1->setBatchNo('B999'); // 批次号不匹配
         $costRecord1->setUnitCost(10.50);
         $costRecord1->setQuantity(30);
         $costRecord1->setTotalCost(315.00);
+        $costRecord1->setCostStrategy(CostStrategy::FIFO);
+        $costRecord1->setCostType(CostType::DIRECT);
+        $costRecord1->setOperator('test');
         $costRecord1->setStockBatch($stockBatch1);
 
         $costRecord2 = new CostRecord();
         $costRecord2->setSkuId('SKU-001');
-        $costRecord2->setBatchNo('B003'); // 批次号不匹配
-        $costRecord2->setUnitCost(12.00);
+        $costRecord2->setBatchNo('B002');
+        $costRecord2->setUnitCost(15.00); // 单位成本不匹配
         $costRecord2->setQuantity(20);
-        $costRecord2->setTotalCost(240.00);
+        $costRecord2->setTotalCost(300.00);
+        $costRecord2->setCostStrategy(CostStrategy::FIFO);
+        $costRecord2->setCostType(CostType::DIRECT);
+        $costRecord2->setOperator('test');
         $costRecord2->setStockBatch($stockBatch2);
 
-        $costRecords = [$costRecord1, $costRecord2];
-
-        $this->repository->expects($this->once())
-            ->method('findAll')
-            ->willReturn($costRecords);
+        // 持久化记录
+        $this->repository->save($costRecord1);
+        $this->repository->save($costRecord2);
 
         $result = $this->fixer->fixInconsistentRecords();
 
@@ -151,13 +179,19 @@ class ConsistencyFixerTest extends TestCase
         $this->assertEmpty($result['errors']);
 
         // 验证修复结果
-        $this->assertEquals('SKU-001', $costRecord1->getSkuId()); // SKU被修复
-        $this->assertEquals('B002', $costRecord2->getBatchNo()); // 批次号被修复
+        $this->assertEquals('B001', $costRecord1->getBatchNo()); // 批次号被修复
+        $this->assertEquals(12.00, $costRecord2->getUnitCost()); // 单位成本被修复
+        $this->assertEquals(240.00, $costRecord2->getTotalCost()); // 总成本被重新计算
     }
 
     public function testFixInconsistentRecordsWithNoIssues(): void
     {
-        $stockBatch = $this->createStockBatch('B001', 'SKU-001', 10.50, 100);
+        // 清理现有数据
+        $em = self::getEntityManager();
+        $em->createQuery('DELETE FROM ' . CostRecord::class)->execute();
+        $em->createQuery('DELETE FROM ' . StockBatch::class)->execute();
+
+        $stockBatch = $this->createAndPersistStockBatch('B001', 10.50, 100);
 
         $costRecord = new CostRecord();
         $costRecord->setSkuId('SKU-001');
@@ -165,11 +199,12 @@ class ConsistencyFixerTest extends TestCase
         $costRecord->setUnitCost(10.50);
         $costRecord->setQuantity(50);
         $costRecord->setTotalCost(525.00);
+        $costRecord->setCostStrategy(CostStrategy::FIFO);
+        $costRecord->setCostType(CostType::DIRECT);
+        $costRecord->setOperator('test');
         $costRecord->setStockBatch($stockBatch);
 
-        $this->repository->expects($this->once())
-            ->method('findAll')
-            ->willReturn([$costRecord]);
+        $this->repository->save($costRecord);
 
         $result = $this->fixer->fixInconsistentRecords();
 
@@ -179,9 +214,9 @@ class ConsistencyFixerTest extends TestCase
 
     public function testFixInconsistentRecordsWithEmptyList(): void
     {
-        $this->repository->expects($this->once())
-            ->method('findAll')
-            ->willReturn([]);
+        // 清理现有数据
+        $em = self::getEntityManager();
+        $em->createQuery('DELETE FROM ' . CostRecord::class)->execute();
 
         $result = $this->fixer->fixInconsistentRecords();
 
@@ -189,16 +224,67 @@ class ConsistencyFixerTest extends TestCase
         $this->assertEmpty($result['errors']);
     }
 
+    /**
+     * 创建内存中的 StockBatch（不持久化，用于不需要数据库的测试）
+     */
     private function createStockBatch(string $batchNo, string $skuId, float $unitCost, int $quantity): StockBatch
     {
-        $sku = $this->createMock(SKU::class);
-        $sku->method('getId')->willReturn($skuId);
+        $sku = new class($skuId) implements SKU {
+            public function __construct(private readonly string $id)
+            {
+            }
+
+            public function getId(): string
+            {
+                return $this->id;
+            }
+
+            public function getGtin(): ?string
+            {
+                return null;
+            }
+
+            public function getMpn(): ?string
+            {
+                return null;
+            }
+
+            public function getRemark(): ?string
+            {
+                return null;
+            }
+
+            public function isValid(): ?bool
+            {
+                return true;
+            }
+        };
 
         $batch = new StockBatch();
         $batch->setBatchNo($batchNo);
         $batch->setSku($sku);
         $batch->setUnitCost($unitCost);
         $batch->setQuantity($quantity);
+
+        return $batch;
+    }
+
+    /**
+     * 创建并持久化 StockBatch（用于需要保存 CostRecord 的测试）
+     * 注意：由于 SKU 是接口而非实体，我们不设置 SKU 关联
+     */
+    private function createAndPersistStockBatch(string $batchNo, float $unitCost, int $quantity): StockBatch
+    {
+        $batch = new StockBatch();
+        $batch->setBatchNo($batchNo);
+        // 不设置 SKU，因为 SKU 接口的匿名实现不是 Doctrine 实体
+        // $batch->setSku(null) 是默认值
+        $batch->setUnitCost($unitCost);
+        $batch->setQuantity($quantity);
+
+        $em = self::getEntityManager();
+        $em->persist($batch);
+        $em->flush();
 
         return $batch;
     }

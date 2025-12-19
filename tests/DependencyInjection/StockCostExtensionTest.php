@@ -13,7 +13,7 @@ use Tourze\StockCostBundle\DependencyInjection\StockCostExtension;
  * @internal
  */
 #[CoversClass(StockCostExtension::class)]
-class StockCostExtensionTest extends AbstractDependencyInjectionExtensionTestCase
+final class StockCostExtensionTest extends AbstractDependencyInjectionExtensionTestCase
 {
     public function testExtensionCanBeInstantiated(): void
     {

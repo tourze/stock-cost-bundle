@@ -13,7 +13,7 @@ use Tourze\StockCostBundle\Entity\CostAllocation;
  * @extends ServiceEntityRepository<CostAllocation>
  */
 #[AsRepository(entityClass: CostAllocation::class)]
-class CostAllocationRepository extends ServiceEntityRepository
+final class CostAllocationRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {

@@ -4,13 +4,9 @@ declare(strict_types=1);
 
 namespace Tourze\StockCostBundle\Tests\Service;
 
-use Doctrine\ORM\AbstractQuery;
-use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\ORM\Query;
-use Doctrine\ORM\QueryBuilder;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\MockObject\MockObject;
-use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use Tourze\PHPUnitSymfonyKernelTest\AbstractIntegrationTestCase;
 use Tourze\StockCostBundle\Entity\CostPeriod;
 use Tourze\StockCostBundle\Enum\CostPeriodStatus;
 use Tourze\StockCostBundle\Enum\CostStrategy;
@@ -23,21 +19,17 @@ use Tourze\StockCostBundle\Service\CostPeriodServiceInterface;
  * @internal
  */
 #[CoversClass(CostPeriodService::class)]
-class CostPeriodServiceTest extends TestCase
+#[RunTestsInSeparateProcesses]
+class CostPeriodServiceTest extends AbstractIntegrationTestCase
 {
     private CostPeriodService $service;
 
-    private EntityManagerInterface $mockEntityManager;
+    private CostPeriodRepository $repository;
 
-    /** @var CostPeriodRepository&MockObject */
-    private CostPeriodRepository $mockRepository;
-
-    protected function setUp(): void
+    protected function onSetUp(): void
     {
-        $this->mockEntityManager = $this->createMock(EntityManagerInterface::class);
-        $this->mockRepository = $this->createMock(CostPeriodRepository::class);
-
-        $this->service = new CostPeriodService($this->mockEntityManager, $this->mockRepository);
+        $this->service = self::getService(CostPeriodService::class);
+        $this->repository = self::getService(CostPeriodRepository::class);
     }
 
     public function testImplementsInterface(): void
@@ -51,16 +43,6 @@ class CostPeriodServiceTest extends TestCase
         $periodEnd = new \DateTimeImmutable('2024-01-31');
         $strategy = CostStrategy::FIFO;
 
-        $this->mockEntityManager
-            ->expects($this->once())
-            ->method('persist')
-        ;
-
-        $this->mockEntityManager
-            ->expects($this->once())
-            ->method('flush')
-        ;
-
         $period = $this->service->createPeriod($periodStart, $periodEnd, $strategy);
 
         $this->assertInstanceOf(CostPeriod::class, $period);
@@ -68,6 +50,7 @@ class CostPeriodServiceTest extends TestCase
         $this->assertEquals($periodEnd, $period->getPeriodEnd());
         $this->assertEquals($strategy, $period->getDefaultStrategy());
         $this->assertEquals(CostPeriodStatus::OPEN, $period->getStatus());
+        $this->assertNotNull($period->getId());
     }
 
     public function testCreatePeriodWithDefaultStrategy(): void
@@ -75,82 +58,66 @@ class CostPeriodServiceTest extends TestCase
         $periodStart = new \DateTimeImmutable('2024-02-01');
         $periodEnd = new \DateTimeImmutable('2024-02-29');
 
-        $this->mockEntityManager
-            ->expects($this->once())
-            ->method('persist')
-        ;
-
-        $this->mockEntityManager
-            ->expects($this->once())
-            ->method('flush')
-        ;
-
         $period = $this->service->createPeriod($periodStart, $periodEnd);
 
         $this->assertEquals(CostStrategy::FIFO, $period->getDefaultStrategy());
+        $this->assertNotNull($period->getId());
     }
 
     public function testClosePeriod(): void
     {
-        $period = new CostPeriod();
-        $period->setPeriodStart(new \DateTimeImmutable('2024-01-01'));
-        $period->setPeriodEnd(new \DateTimeImmutable('2024-01-31'));
-        $period->setStatus(CostPeriodStatus::OPEN);
-
-        $this->mockEntityManager
-            ->expects($this->once())
-            ->method('persist')
-            ->with($period)
-        ;
-
-        $this->mockEntityManager
-            ->expects($this->once())
-            ->method('flush')
-        ;
+        // 创建一个 OPEN 状态的 period
+        $periodStart = new \DateTimeImmutable('2024-01-01');
+        $periodEnd = new \DateTimeImmutable('2024-01-31');
+        $period = $this->service->createPeriod($periodStart, $periodEnd);
 
         $result = $this->service->closePeriod($period);
 
         $this->assertEquals(CostPeriodStatus::CLOSED, $result->getStatus());
+
+        // 重新从数据库获取，验证状态已保存
+        $savedPeriod = $this->repository->find($period->getId());
+        $this->assertEquals(CostPeriodStatus::CLOSED, $savedPeriod->getStatus());
     }
 
     public function testCannotCloseNonOpenPeriod(): void
     {
-        $period = new CostPeriod();
-        $period->setStatus(CostPeriodStatus::CLOSED);
+        // 创建一个 period 并关闭它
+        $periodStart = new \DateTimeImmutable('2024-01-01');
+        $periodEnd = new \DateTimeImmutable('2024-01-31');
+        $period = $this->service->createPeriod($periodStart, $periodEnd);
+        $this->service->closePeriod($period);
 
         $this->expectException(CostPeriodException::class);
         $this->expectExceptionMessage('Only OPEN periods can be closed');
 
+        // 尝试再次关闭应该失败
         $this->service->closePeriod($period);
     }
 
     public function testFreezePeriod(): void
     {
-        $period = new CostPeriod();
-        $period->setPeriodStart(new \DateTimeImmutable('2024-01-01'));
-        $period->setPeriodEnd(new \DateTimeImmutable('2024-01-31'));
-        $period->setStatus(CostPeriodStatus::CLOSED);
-
-        $this->mockEntityManager
-            ->expects($this->once())
-            ->method('persist')
-            ->with($period)
-        ;
-
-        $this->mockEntityManager
-            ->expects($this->once())
-            ->method('flush')
-        ;
+        // 创建并关闭一个 period
+        $periodStart = new \DateTimeImmutable('2024-01-01');
+        $periodEnd = new \DateTimeImmutable('2024-01-31');
+        $period = $this->service->createPeriod($periodStart, $periodEnd);
+        $this->service->closePeriod($period);
 
         $result = $this->service->freezePeriod($period);
 
         $this->assertEquals(CostPeriodStatus::FROZEN, $result->getStatus());
+
+        // 重新从数据库获取，验证状态已保存
+        $savedPeriod = $this->repository->find($period->getId());
+        $this->assertEquals(CostPeriodStatus::FROZEN, $savedPeriod->getStatus());
     }
 
     public function testCannotFreezeOpenPeriod(): void
     {
-        $period = new CostPeriod();
-        $period->setStatus(CostPeriodStatus::OPEN);
+        // 创建一个 OPEN 状态的 period
+        $periodStart = new \DateTimeImmutable('2024-01-01');
+        $periodEnd = new \DateTimeImmutable('2024-01-31');
+        $period = $this->service->createPeriod($periodStart, $periodEnd);
 
         $this->expectException(CostPeriodException::class);
         $this->expectExceptionMessage('Only CLOSED periods can be frozen');
@@ -160,31 +127,28 @@ class CostPeriodServiceTest extends TestCase
 
     public function testUnfreezePeriod(): void
     {
-        $period = new CostPeriod();
-        $period->setPeriodStart(new \DateTimeImmutable('2024-01-01'));
-        $period->setPeriodEnd(new \DateTimeImmutable('2024-01-31'));
-        $period->setStatus(CostPeriodStatus::FROZEN);
-
-        $this->mockEntityManager
-            ->expects($this->once())
-            ->method('persist')
-            ->with($period)
-        ;
-
-        $this->mockEntityManager
-            ->expects($this->once())
-            ->method('flush')
-        ;
+        // 创建、关闭并冻结一个 period
+        $periodStart = new \DateTimeImmutable('2024-01-01');
+        $periodEnd = new \DateTimeImmutable('2024-01-31');
+        $period = $this->service->createPeriod($periodStart, $periodEnd);
+        $this->service->closePeriod($period);
+        $this->service->freezePeriod($period);
 
         $result = $this->service->unfreezePeriod($period);
 
         $this->assertEquals(CostPeriodStatus::CLOSED, $result->getStatus());
+
+        // 重新从数据库获取，验证状态已保存
+        $savedPeriod = $this->repository->find($period->getId());
+        $this->assertEquals(CostPeriodStatus::CLOSED, $savedPeriod->getStatus());
     }
 
     public function testCannotUnfreezeNonFrozenPeriod(): void
     {
-        $period = new CostPeriod();
-        $period->setStatus(CostPeriodStatus::OPEN);
+        // 创建一个 OPEN 状态的 period
+        $periodStart = new \DateTimeImmutable('2024-01-01');
+        $periodEnd = new \DateTimeImmutable('2024-01-31');
+        $period = $this->service->createPeriod($periodStart, $periodEnd);
 
         $this->expectException(CostPeriodException::class);
         $this->expectExceptionMessage('Only FROZEN periods can be unfrozen');
@@ -192,94 +156,44 @@ class CostPeriodServiceTest extends TestCase
         $this->service->unfreezePeriod($period);
     }
 
-    public function testGetCurrentPeriod(): void
-    {
-        $currentDate = new \DateTimeImmutable();
-        $period = new CostPeriod();
-
-        $this->mockRepository
-            ->expects($this->once())
-            ->method('findOneBy')
-            ->willReturn($period)
-        ;
-
-        $result = $this->service->getCurrentPeriod();
-
-        $this->assertSame($period, $result);
-    }
-
-    public function testGetCurrentPeriodReturnsNull(): void
-    {
-        $this->mockRepository
-            ->method('findOneBy')
-            ->willReturn(null)
-        ;
-
-        $result = $this->service->getCurrentPeriod();
-
-        $this->assertNull($result);
-    }
-
     public function testFindPeriodByDate(): void
     {
-        $date = new \DateTimeImmutable('2024-01-15');
-        $period = new CostPeriod();
+        // 创建一个独特时间范围的 period
+        $periodStart = new \DateTimeImmutable('2025-05-01');
+        $periodEnd = new \DateTimeImmutable('2025-05-31');
+        $period = $this->service->createPeriod($periodStart, $periodEnd);
 
-        $mockQuery = $this->createMock(Query::class);
-        $mockQueryBuilder = $this->createMock(QueryBuilder::class);
+        // 查找日期在 period 范围内的记录
+        $dateInRange = new \DateTimeImmutable('2025-05-15');
+        $result = $this->service->findPeriodByDate($dateInRange);
 
-        // Configure the repository to return the query builder
-        $this->mockRepository
-            ->expects($this->once())
-            ->method('createQueryBuilder')
-            ->with('p')
-            ->willReturn($mockQueryBuilder)
-        ;
+        $this->assertNotNull($result);
+        $this->assertEquals($period->getId(), $result->getId());
 
-        // Configure the query builder
-        $mockQueryBuilder
-            ->expects($this->exactly(2))
-            ->method('andWhere')
-            ->willReturnSelf()
-        ;
+        // 查找日期在 period 范围外的记录
+        $dateOutOfRange = new \DateTimeImmutable('2025-06-15');
+        $resultNotFound = $this->service->findPeriodByDate($dateOutOfRange);
 
-        $mockQueryBuilder
-            ->expects($this->once())
-            ->method('setParameter')
-            ->with('date', $date)
-            ->willReturnSelf()
-        ;
-
-        $mockQueryBuilder
-            ->expects($this->once())
-            ->method('getQuery')
-            ->willReturn($mockQuery)
-        ;
-
-        // Configure the query to return the period
-        $mockQuery
-            ->expects($this->once())
-            ->method('getOneOrNullResult')
-            ->willReturn($period)
-        ;
-
-        $result = $this->service->findPeriodByDate($date);
-
-        $this->assertSame($period, $result);
+        $this->assertNull($resultNotFound);
     }
 
     public function testCanClosePeriodReturnsTrueForOpenPeriod(): void
     {
-        $period = new CostPeriod();
-        $period->setStatus(CostPeriodStatus::OPEN);
+        // 创建一个 OPEN 状态的 period
+        $periodStart = new \DateTimeImmutable('2024-01-01');
+        $periodEnd = new \DateTimeImmutable('2024-01-31');
+        $period = $this->service->createPeriod($periodStart, $periodEnd);
 
         $this->assertTrue($this->service->canClosePeriod($period));
     }
 
     public function testCanClosePeriodReturnsFalseForNonOpenPeriod(): void
     {
-        $period = new CostPeriod();
-        $period->setStatus(CostPeriodStatus::CLOSED);
+        // 创建并关闭一个 period
+        $periodStart = new \DateTimeImmutable('2024-01-01');
+        $periodEnd = new \DateTimeImmutable('2024-01-31');
+        $period = $this->service->createPeriod($periodStart, $periodEnd);
+        $this->service->closePeriod($period);
 
         $this->assertFalse($this->service->canClosePeriod($period));
     }

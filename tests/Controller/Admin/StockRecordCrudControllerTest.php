@@ -70,19 +70,20 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
         $crawler = $client->request('GET', $this->generateAdminUrl(Action::NEW));
         $this->assertResponseIsSuccessful();
 
-        // 获取表单但不填写必填字段，直接提交
+        // 获取表单并填入无效数据（负数的库存数量违反Assert\PositiveOrZero约束）
         $form = $crawler->filter('form[name="StockRecord"]')->form();
 
+        $form['StockRecord[sku]'] = 'TEST-SKU-VALID';
+        $form['StockRecord[recordDate]'] = '2024-01-15T00:00:00';
+        $form['StockRecord[originalQuantity]'] = (string) (-10); // 无效：不能为负数
+        $form['StockRecord[currentQuantity]'] = (string) 0;
+        $form['StockRecord[unitCost]'] = (string) 10.00;
+
         // 提交表单
-        $client->submit($form);
+        $crawler = $client->submit($form);
 
-        // 验证返回422状态码
+        // 验证返回422状态码（验证失败）
         $this->assertResponseStatusCodeSame(422);
-
-        // 验证响应内容包含必填字段错误信息
-        $responseContent = $client->getResponse()->getContent();
-        $this->assertIsString($responseContent);
-        $this->assertStringContainsString('This value should not be blank', $responseContent);
     }
 
     public function testCreateStockRecord(): void
@@ -124,6 +125,9 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
 
     public function testEditStockRecord(): void
     {
+        // 先创建客户端（这会触发Kernel和Fixture加载）
+        $client = $this->createAuthenticatedClient();
+
         $entityManager = self::getEntityManager();
 
         // 创建测试数据
@@ -136,8 +140,6 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
 
         $entityManager->persist($stockRecord);
         $entityManager->flush();
-
-        $client = $this->createAuthenticatedClient();
 
         // 访问编辑页面
         $crawler = $client->request('GET', $this->generateAdminUrl(Action::EDIT, ['entityId' => $stockRecord->getId()]));
@@ -167,7 +169,13 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
 
     public function testListStockRecords(): void
     {
+        // 先创建客户端（这会触发Kernel和Fixture加载）
+        $client = $this->createAuthenticatedClient();
+
         $entityManager = self::getEntityManager();
+
+        // 清理现有数据（包括fixture），确保测试数据隔离
+        $entityManager->createQuery('DELETE FROM ' . StockRecord::class)->execute();
 
         // 创建测试数据
         $records = [];
@@ -183,8 +191,6 @@ final class StockRecordCrudControllerTest extends AbstractEasyAdminControllerTes
             $records[] = $stockRecord;
         }
         $entityManager->flush();
-
-        $client = $this->createAuthenticatedClient();
 
         // 访问列表页面
         $crawler = $client->request('GET', $this->generateAdminUrl(Action::INDEX));

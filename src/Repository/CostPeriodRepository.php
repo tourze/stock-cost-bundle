@@ -13,7 +13,7 @@ use Tourze\StockCostBundle\Entity\CostPeriod;
  * @extends ServiceEntityRepository<CostPeriod>
  */
 #[AsRepository(entityClass: CostPeriod::class)]
-class CostPeriodRepository extends ServiceEntityRepository
+final class CostPeriodRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {

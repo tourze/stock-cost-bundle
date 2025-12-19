@@ -77,6 +77,40 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
         yield 'metadata' => ['metadata'];
     }
 
+    public function testValidationErrors(): void
+    {
+        $client = $this->createAuthenticatedClient();
+
+        // 访问新建页面
+        $crawler = $client->request('GET', $this->generateAdminUrl(Action::NEW));
+        $this->assertResponseIsSuccessful();
+
+        // 获取表单并填入无效数据（quantity=0违反Assert\Positive约束）
+        $form = $crawler->filter('form[name="CostRecord"]')->form();
+
+        // 检查 costStrategy 字段的可用选项
+        $costStrategyField = $form['CostRecord[costStrategy]'];
+        /** @var \Symfony\Component\DomCrawler\Field\ChoiceFormField $costStrategyField */
+        $availableValues = $costStrategyField->availableOptionValues();
+
+        if ($availableValues === []) {
+            self::markTestSkipped('EnumField for costStrategy has no available values - field configuration issue');
+        }
+
+        $form['CostRecord[skuId]'] = 'TEST-SKU-VALID';
+        $form['CostRecord[unitCost]'] = (string) 15.50;
+        $form['CostRecord[quantity]'] = (string) 0; // 无效：必须为正数
+        $form['CostRecord[totalCost]'] = (string) 0;
+        $form['CostRecord[costStrategy]'] = $availableValues[0] ?? '';
+        $form['CostRecord[costType]'] = CostType::DIRECT->value;
+
+        // 提交表单
+        $crawler = $client->submit($form);
+
+        // 验证返回422状态码（验证失败）
+        $this->assertResponseStatusCodeSame(422);
+    }
+
     public function testCreateCostRecord(): void
     {
         $entityManager = self::getEntityManager();
@@ -99,8 +133,8 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
         $availableValues = $costStrategyField->availableOptionValues();
 
         // 如果没有可用值，说明EnumField配置有问题，跳过这个测试
-        if (empty($availableValues)) {
-            $this->markTestSkipped('EnumField for costStrategy has no available values - field configuration issue');
+        if ($availableValues === []) {
+            self::markTestSkipped('EnumField for costStrategy has no available values - field configuration issue');
         }
 
         $form['CostRecord[skuId]'] = 'TEST-SKU-001';
@@ -140,7 +174,7 @@ final class CostRecordCrudControllerTest extends AbstractEasyAdminControllerTest
         // EnumField在测试环境中无法正确渲染选项，导致表单提交时枚举字段为null
         // 这是一个已知的EnumField配置问题，需要后续修复
         // 相关问题：testCreateCostRecord也因同样原因被跳过
-        $this->markTestSkipped('EnumField for costStrategy has no available values - field configuration issue. See testCreateCostRecord for details.');
+        self::markTestSkipped('EnumField for costStrategy has no available values - field configuration issue. See testCreateCostRecord for details.');
 
         $entityManager = self::getEntityManager();
 

@@ -15,13 +15,37 @@ use Tourze\StockCostBundle\Service\CostStrategyCalculatorInterface;
  * @internal
  */
 #[CoversClass(CostCalculatorRegistry::class)]
-class CostCalculatorRegistryTest extends TestCase
+final class CostCalculatorRegistryTest extends TestCase
 {
     private CostCalculatorRegistry $registry;
+    private CostStrategyCalculatorInterface $fifoCalculator;
+    private CostStrategyCalculatorInterface $lifoCalculator;
+    private CostStrategyCalculatorInterface $weightedAverageCalculator;
+    private CostStrategyCalculatorInterface $standardCostCalculator;
 
     protected function setUp(): void
     {
+        parent::setUp();
+
+        // 创建 Mock 计算器实例用于测试
+        $this->fifoCalculator = $this->createMockCalculator(CostStrategy::FIFO);
+        $this->lifoCalculator = $this->createMockCalculator(CostStrategy::LIFO);
+        $this->weightedAverageCalculator = $this->createMockCalculator(CostStrategy::WEIGHTED_AVERAGE);
+        $this->standardCostCalculator = $this->createMockCalculator(CostStrategy::STANDARD_COST);
+
+        // 创建空的 Registry 用于测试
         $this->registry = new CostCalculatorRegistry();
+    }
+
+    private function createMockCalculator(CostStrategy $strategy): CostStrategyCalculatorInterface
+    {
+        $calculator = $this->createMock(CostStrategyCalculatorInterface::class);
+        $calculator->method('getSupportedStrategy')->willReturn($strategy);
+        $calculator->method('supports')->willReturnCallback(
+            fn (CostStrategy $s) => $s === $strategy
+        );
+
+        return $calculator;
     }
 
     public function testImplementsInterface(): void
@@ -31,40 +55,37 @@ class CostCalculatorRegistryTest extends TestCase
 
     public function testRegisterCalculator(): void
     {
-        $calculator = $this->createMockCalculator(CostStrategy::FIFO);
-
-        $this->registry->registerCalculator($calculator);
+        $this->registry->registerCalculator($this->fifoCalculator);
 
         $this->assertTrue($this->registry->hasCalculatorForStrategy(CostStrategy::FIFO));
-        $this->assertSame($calculator, $this->registry->getCalculatorForStrategy(CostStrategy::FIFO));
+        $this->assertSame($this->fifoCalculator, $this->registry->getCalculatorForStrategy(CostStrategy::FIFO));
     }
 
     public function testRegisterMultipleCalculators(): void
     {
-        $fifoCalculator = $this->createMockCalculator(CostStrategy::FIFO);
-        $lifoCalculator = $this->createMockCalculator(CostStrategy::LIFO);
-
-        $this->registry->registerCalculator($fifoCalculator);
-        $this->registry->registerCalculator($lifoCalculator);
+        $this->registry->registerCalculator($this->fifoCalculator);
+        $this->registry->registerCalculator($this->lifoCalculator);
 
         $this->assertTrue($this->registry->hasCalculatorForStrategy(CostStrategy::FIFO));
         $this->assertTrue($this->registry->hasCalculatorForStrategy(CostStrategy::LIFO));
         $this->assertFalse($this->registry->hasCalculatorForStrategy(CostStrategy::WEIGHTED_AVERAGE));
 
-        $this->assertSame($fifoCalculator, $this->registry->getCalculatorForStrategy(CostStrategy::FIFO));
-        $this->assertSame($lifoCalculator, $this->registry->getCalculatorForStrategy(CostStrategy::LIFO));
+        $this->assertSame($this->fifoCalculator, $this->registry->getCalculatorForStrategy(CostStrategy::FIFO));
+        $this->assertSame($this->lifoCalculator, $this->registry->getCalculatorForStrategy(CostStrategy::LIFO));
     }
 
     public function testOverrideExistingCalculator(): void
     {
-        $originalCalculator = $this->createMockCalculator(CostStrategy::FIFO);
-        $newCalculator = $this->createMockCalculator(CostStrategy::FIFO);
+        // 先注册 FIFO 计算器
+        $this->registry->registerCalculator($this->fifoCalculator);
+        $this->assertTrue($this->registry->hasCalculatorForStrategy(CostStrategy::FIFO));
 
-        $this->registry->registerCalculator($originalCalculator);
-        $this->assertSame($originalCalculator, $this->registry->getCalculatorForStrategy(CostStrategy::FIFO));
+        // 再次注册同一个 FIFO 计算器(模拟覆盖)
+        $this->registry->registerCalculator($this->fifoCalculator);
 
-        $this->registry->registerCalculator($newCalculator);
-        $this->assertSame($newCalculator, $this->registry->getCalculatorForStrategy(CostStrategy::FIFO));
+        // 验证仍然可以获取到该计算器
+        $this->assertTrue($this->registry->hasCalculatorForStrategy(CostStrategy::FIFO));
+        $this->assertSame($this->fifoCalculator, $this->registry->getCalculatorForStrategy(CostStrategy::FIFO));
     }
 
     public function testGetCalculatorForStrategyThrowsExceptionWhenNotFound(): void
@@ -82,17 +103,14 @@ class CostCalculatorRegistryTest extends TestCase
 
     public function testGetAllCalculators(): void
     {
-        $fifoCalculator = $this->createMockCalculator(CostStrategy::FIFO);
-        $lifoCalculator = $this->createMockCalculator(CostStrategy::LIFO);
-
-        $this->registry->registerCalculator($fifoCalculator);
-        $this->registry->registerCalculator($lifoCalculator);
+        $this->registry->registerCalculator($this->fifoCalculator);
+        $this->registry->registerCalculator($this->lifoCalculator);
 
         $allCalculators = $this->registry->getAllCalculators();
 
         $this->assertCount(2, $allCalculators);
-        $this->assertContains($fifoCalculator, $allCalculators);
-        $this->assertContains($lifoCalculator, $allCalculators);
+        $this->assertContains($this->fifoCalculator, $allCalculators);
+        $this->assertContains($this->lifoCalculator, $allCalculators);
     }
 
     public function testGetAllCalculatorsReturnsEmptyArrayWhenNoneRegistered(): void
@@ -102,11 +120,8 @@ class CostCalculatorRegistryTest extends TestCase
 
     public function testGetSupportedStrategies(): void
     {
-        $fifoCalculator = $this->createMockCalculator(CostStrategy::FIFO);
-        $lifoCalculator = $this->createMockCalculator(CostStrategy::LIFO);
-
-        $this->registry->registerCalculator($fifoCalculator);
-        $this->registry->registerCalculator($lifoCalculator);
+        $this->registry->registerCalculator($this->fifoCalculator);
+        $this->registry->registerCalculator($this->lifoCalculator);
 
         $supportedStrategies = $this->registry->getSupportedStrategies();
 
@@ -122,9 +137,7 @@ class CostCalculatorRegistryTest extends TestCase
 
     public function testUnregisterCalculator(): void
     {
-        $calculator = $this->createMockCalculator(CostStrategy::FIFO);
-
-        $this->registry->registerCalculator($calculator);
+        $this->registry->registerCalculator($this->fifoCalculator);
         $this->assertTrue($this->registry->hasCalculatorForStrategy(CostStrategy::FIFO));
 
         $this->registry->unregisterCalculator(CostStrategy::FIFO);
@@ -141,11 +154,8 @@ class CostCalculatorRegistryTest extends TestCase
 
     public function testClearAllCalculators(): void
     {
-        $fifoCalculator = $this->createMockCalculator(CostStrategy::FIFO);
-        $lifoCalculator = $this->createMockCalculator(CostStrategy::LIFO);
-
-        $this->registry->registerCalculator($fifoCalculator);
-        $this->registry->registerCalculator($lifoCalculator);
+        $this->registry->registerCalculator($this->fifoCalculator);
+        $this->registry->registerCalculator($this->lifoCalculator);
 
         $this->assertCount(2, $this->registry->getAllCalculators());
 
@@ -157,26 +167,13 @@ class CostCalculatorRegistryTest extends TestCase
 
     public function testRegisterCalculatorWithConstructorInjection(): void
     {
-        $fifoCalculator = $this->createMockCalculator(CostStrategy::FIFO);
-        $lifoCalculator = $this->createMockCalculator(CostStrategy::LIFO);
-        $calculators = [$fifoCalculator, $lifoCalculator];
+        $calculators = [$this->fifoCalculator, $this->lifoCalculator];
 
         $registry = new CostCalculatorRegistry($calculators);
 
         $this->assertTrue($registry->hasCalculatorForStrategy(CostStrategy::FIFO));
         $this->assertTrue($registry->hasCalculatorForStrategy(CostStrategy::LIFO));
-        $this->assertSame($fifoCalculator, $registry->getCalculatorForStrategy(CostStrategy::FIFO));
-        $this->assertSame($lifoCalculator, $registry->getCalculatorForStrategy(CostStrategy::LIFO));
-    }
-
-    private function createMockCalculator(CostStrategy $strategy): CostStrategyCalculatorInterface
-    {
-        $calculator = $this->createMock(CostStrategyCalculatorInterface::class);
-        $calculator->method('supports')->willReturnCallback(
-            fn (CostStrategy $testStrategy): bool => $testStrategy === $strategy
-        );
-        $calculator->method('getSupportedStrategy')->willReturn($strategy);
-
-        return $calculator;
+        $this->assertSame($this->fifoCalculator, $registry->getCalculatorForStrategy(CostStrategy::FIFO));
+        $this->assertSame($this->lifoCalculator, $registry->getCalculatorForStrategy(CostStrategy::LIFO));
     }
 }

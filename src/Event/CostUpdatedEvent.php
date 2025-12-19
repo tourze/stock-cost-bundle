@@ -11,7 +11,7 @@ use Symfony\Contracts\EventDispatcher\Event;
  *
  * 当商品成本发生变更时触发此事件
  */
-class CostUpdatedEvent extends Event
+final class CostUpdatedEvent extends Event
 {
     private \DateTimeImmutable $occurredAt;
 

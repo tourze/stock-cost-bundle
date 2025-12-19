@@ -56,9 +56,8 @@ class StockChangeListenerTest extends AbstractEventSubscriberTestCase
         $stockBatch->method('getSku')->willReturn($sku);
         $stockBatch->method('getQuantity')->willReturn(100);
 
-        // 创建模拟的事件
-        $event = $this->createMock(StockAdjustedEvent::class);
-        $event->method('getStockBatch')->willReturn($stockBatch);
+        // 事件类是 final，使用真实事件对象
+        $event = new StockAdjustedEvent($stockBatch, 'inventory', 100, 'test');
 
         // 设置期望的成本计算结果
         $expectedResult = new CostCalculationResult(
@@ -87,9 +86,7 @@ class StockChangeListenerTest extends AbstractEventSubscriberTestCase
         $stockBatch = $this->createMock(StockBatch::class);
         $stockBatch->method('getSku')->willReturn(null);
 
-        // 创建模拟的事件
-        $event = $this->createMock(StockAdjustedEvent::class);
-        $event->method('getStockBatch')->willReturn($stockBatch);
+        $event = new StockAdjustedEvent($stockBatch, 'inventory', 1, 'test');
 
         // 成本服务不应该被调用
         $this->costService
@@ -111,9 +108,7 @@ class StockChangeListenerTest extends AbstractEventSubscriberTestCase
         $stockBatch = $this->createMock(StockBatch::class);
         $stockBatch->method('getSku')->willReturn($sku);
 
-        // 创建模拟的事件
-        $event = $this->createMock(StockAdjustedEvent::class);
-        $event->method('getStockBatch')->willReturn($stockBatch);
+        $event = new StockAdjustedEvent($stockBatch, 'inventory', 1, 'test');
 
         // 成本服务不应该被调用
         $this->costService
@@ -136,9 +131,7 @@ class StockChangeListenerTest extends AbstractEventSubscriberTestCase
         $stockBatch->method('getSku')->willReturn($sku);
         $stockBatch->method('getQuantity')->willReturn(0);
 
-        // 创建模拟的事件
-        $event = $this->createMock(StockAdjustedEvent::class);
-        $event->method('getStockBatch')->willReturn($stockBatch);
+        $event = new StockAdjustedEvent($stockBatch, 'inventory', 0, 'test');
 
         // 数量为0时，成本服务不应该被调用
         $this->costService
@@ -161,9 +154,7 @@ class StockChangeListenerTest extends AbstractEventSubscriberTestCase
         $stockBatch->method('getSku')->willReturn($sku);
         $stockBatch->method('getQuantity')->willReturn(-50);
 
-        // 创建模拟的事件
-        $event = $this->createMock(StockAdjustedEvent::class);
-        $event->method('getStockBatch')->willReturn($stockBatch);
+        $event = new StockAdjustedEvent($stockBatch, 'inventory', -50, 'test');
 
         // 负数量时，成本服务不应该被调用
         $this->costService
@@ -186,9 +177,7 @@ class StockChangeListenerTest extends AbstractEventSubscriberTestCase
         $stockBatch->method('getSku')->willReturn($sku);
         $stockBatch->method('getQuantity')->willReturn(10000);
 
-        // 创建模拟的事件
-        $event = $this->createMock(StockAdjustedEvent::class);
-        $event->method('getStockBatch')->willReturn($stockBatch);
+        $event = new StockAdjustedEvent($stockBatch, 'inventory', 10000, 'test');
 
         // 设置期望的成本计算结果
         $expectedResult = new CostCalculationResult(
@@ -222,9 +211,7 @@ class StockChangeListenerTest extends AbstractEventSubscriberTestCase
         $stockBatch->method('getSku')->willReturn($sku);
         $stockBatch->method('getQuantity')->willReturn(100);
 
-        // 创建模拟的事件
-        $event = $this->createMock(StockAdjustedEvent::class);
-        $event->method('getStockBatch')->willReturn($stockBatch);
+        $event = new StockAdjustedEvent($stockBatch, 'inventory', 100, 'test');
 
         // 成本服务抛出异常
         $this->costService
@@ -291,9 +278,7 @@ class StockChangeListenerTest extends AbstractEventSubscriberTestCase
             $stockBatch->method('getSku')->willReturn($sku);
             $stockBatch->method('getQuantity')->willReturn($quantities[$index]);
 
-            // 创建模拟的事件
-            $event = $this->createMock(StockAdjustedEvent::class);
-            $event->method('getStockBatch')->willReturn($stockBatch);
+            $event = new StockAdjustedEvent($stockBatch, 'inventory', $quantities[$index], 'test');
 
             // 调用监听器方法
             $this->listener->onStockAdjusted($event);

@@ -18,7 +18,7 @@ use Tourze\StockManageBundle\Event\StockAdjustedEvent;
  */
 #[AsEventListener(event: StockAdjustedEvent::class, method: 'onStockAdjusted')]
 #[Autoconfigure(public: true)]
-class StockChangeListener
+final class StockChangeListener
 {
     public function __construct(
         private readonly CostServiceInterface $costService,

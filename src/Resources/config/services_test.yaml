@@ -8,3 +8,8 @@ services:
     Tourze\StockCostBundle\DataFixtures\:
         resource: '../../DataFixtures/'
         tags: [doctrine.fixture.orm]
+
+    # Test helpers - only available in test environment
+    Tourze\StockCostBundle\Tests\Service\CostVarianceAnalysisServiceTestFactory:
+        public: true
+        autowire: true

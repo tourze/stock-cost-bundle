@@ -178,8 +178,36 @@ class StockBatchConsistencyValidatorTest extends TestCase
 
     private function createStockBatch(string $batchNo, string $skuId, float $unitCost, int $quantity): StockBatch
     {
-        $sku = $this->createMock(SKU::class);
-        $sku->method('getId')->willReturn($skuId);
+        $sku = new class($skuId) implements SKU {
+            public function __construct(private readonly string $id)
+            {
+            }
+
+            public function getId(): string
+            {
+                return $this->id;
+            }
+
+            public function getGtin(): ?string
+            {
+                return null;
+            }
+
+            public function getMpn(): ?string
+            {
+                return null;
+            }
+
+            public function getRemark(): ?string
+            {
+                return null;
+            }
+
+            public function isValid(): ?bool
+            {
+                return true;
+            }
+        };
 
         $batch = new StockBatch();
         $batch->setBatchNo($batchNo);

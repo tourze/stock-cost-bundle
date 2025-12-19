@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Tourze\StockCostBundle\Tests\Service\Calculator;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use Tourze\PHPUnitSymfonyKernelTest\AbstractIntegrationTestCase;
 use Tourze\StockCostBundle\Entity\StockRecord;
 use Tourze\StockCostBundle\Enum\CostStrategy;
 use Tourze\StockCostBundle\Model\CostCalculationResult;
@@ -17,16 +18,17 @@ use Tourze\StockCostBundle\Service\StockRecordServiceInterface;
  * @internal
  */
 #[CoversClass(WeightedAverageCostCalculator::class)]
-class WeightedAverageCostCalculatorTest extends TestCase
+#[RunTestsInSeparateProcesses]
+final class WeightedAverageCostCalculatorTest extends AbstractIntegrationTestCase
 {
     private WeightedAverageCostCalculator $calculator;
 
-    private StockRecordServiceInterface $mockStockRecordService;
+    private StockRecordServiceInterface $stockRecordService;
 
-    protected function setUp(): void
+    protected function onSetUp(): void
     {
-        $this->mockStockRecordService = $this->createMock(StockRecordServiceInterface::class);
-        $this->calculator = new WeightedAverageCostCalculator($this->mockStockRecordService);
+        $this->calculator = self::getContainer()->get(WeightedAverageCostCalculator::class);
+        $this->stockRecordService = self::getContainer()->get(StockRecordServiceInterface::class);
     }
 
     public function testImplementsInterface(): void
@@ -53,18 +55,9 @@ class WeightedAverageCostCalculatorTest extends TestCase
 
     public function testCalculateWeightedAverageCost(): void
     {
-        $stockRecords = [
-            $this->createStockRecord('2024-01-01', 100, 10.00, 100),
-            $this->createStockRecord('2024-01-02', 50, 12.00, 50),
-            $this->createStockRecord('2024-01-03', 75, 14.00, 75),
-        ];
-
-        $this->mockStockRecordService
-            ->expects($this->once())
-            ->method('getStockRecordsForSku')
-            ->with('SKU-001')
-            ->willReturn($stockRecords)
-        ;
+        $this->createStockRecord('SKU-001', '2024-01-01', 100, 10.00, 100);
+        $this->createStockRecord('SKU-001', '2024-01-02', 50, 12.00, 50);
+        $this->createStockRecord('SKU-001', '2024-01-03', 75, 14.00, 75);
 
         $result = $this->calculator->calculate('SKU-001', 100);
 
@@ -79,16 +72,8 @@ class WeightedAverageCostCalculatorTest extends TestCase
 
     public function testCalculateWithExactStock(): void
     {
-        $stockRecords = [
-            $this->createStockRecord('2024-01-01', 80, 15.00, 80),
-            $this->createStockRecord('2024-01-02', 20, 25.00, 20),
-        ];
-
-        $this->mockStockRecordService
-            ->method('getStockRecordsForSku')
-            ->with('SKU-002')
-            ->willReturn($stockRecords)
-        ;
+        $this->createStockRecord('SKU-002', '2024-01-01', 80, 15.00, 80);
+        $this->createStockRecord('SKU-002', '2024-01-02', 20, 25.00, 20);
 
         $result = $this->calculator->calculate('SKU-002', 100);
 
@@ -100,14 +85,7 @@ class WeightedAverageCostCalculatorTest extends TestCase
 
     public function testCalculateWithSingleRecord(): void
     {
-        $stockRecords = [
-            $this->createStockRecord('2024-01-01', 100, 12.50, 100),
-        ];
-
-        $this->mockStockRecordService
-            ->method('getStockRecordsForSku')
-            ->willReturn($stockRecords)
-        ;
+        $this->createStockRecord('SKU-003', '2024-01-01', 100, 12.50, 100);
 
         $result = $this->calculator->calculate('SKU-003', 50);
 
@@ -117,15 +95,8 @@ class WeightedAverageCostCalculatorTest extends TestCase
 
     public function testCalculateWithInsufficientStock(): void
     {
-        $stockRecords = [
-            $this->createStockRecord('2024-01-01', 30, 10.00, 30),
-            $this->createStockRecord('2024-01-02', 20, 15.00, 20),
-        ];
-
-        $this->mockStockRecordService
-            ->method('getStockRecordsForSku')
-            ->willReturn($stockRecords)
-        ;
+        $this->createStockRecord('SKU-004', '2024-01-01', 30, 10.00, 30);
+        $this->createStockRecord('SKU-004', '2024-01-02', 20, 15.00, 20);
 
         $result = $this->calculator->calculate('SKU-004', 100);
 
@@ -137,11 +108,6 @@ class WeightedAverageCostCalculatorTest extends TestCase
 
     public function testCalculateWithNoStock(): void
     {
-        $this->mockStockRecordService
-            ->method('getStockRecordsForSku')
-            ->willReturn([])
-        ;
-
         $result = $this->calculator->calculate('SKU-005', 100);
 
         $this->assertEquals(100, $result->getQuantity());
@@ -152,16 +118,9 @@ class WeightedAverageCostCalculatorTest extends TestCase
 
     public function testCalculateIgnoresZeroQuantityRecords(): void
     {
-        $stockRecords = [
-            $this->createStockRecord('2024-01-01', 50, 10.00, 100),
-            $this->createStockRecord('2024-01-02', 0, 15.00, 50),
-            $this->createStockRecord('2024-01-03', 50, 20.00, 50),
-        ];
-
-        $this->mockStockRecordService
-            ->method('getStockRecordsForSku')
-            ->willReturn($stockRecords)
-        ;
+        $this->createStockRecord('SKU-006', '2024-01-01', 50, 10.00, 100);
+        $this->createStockRecord('SKU-006', '2024-01-02', 0, 15.00, 50);
+        $this->createStockRecord('SKU-006', '2024-01-03', 50, 20.00, 50);
 
         $result = $this->calculator->calculate('SKU-006', 80);
 
@@ -171,91 +130,63 @@ class WeightedAverageCostCalculatorTest extends TestCase
 
     public function testCanCalculateWithValidData(): void
     {
-        $stockRecords = [
-            $this->createStockRecord('2024-01-01', 50, 10.00, 50),
-        ];
+        $this->createStockRecord('SKU-007', '2024-01-01', 50, 10.00, 50);
 
-        $this->mockStockRecordService
-            ->method('getStockRecordsForSku')
-            ->willReturn($stockRecords)
-        ;
-
-        $this->assertTrue($this->calculator->canCalculate('SKU-001', 30));
+        $this->assertTrue($this->calculator->canCalculate('SKU-007', 30));
     }
 
     public function testCannotCalculateWithZeroQuantity(): void
     {
-        $this->assertFalse($this->calculator->canCalculate('SKU-001', 0));
-        $this->assertFalse($this->calculator->canCalculate('SKU-001', -5));
+        $this->assertFalse($this->calculator->canCalculate('SKU-008', 0));
+        $this->assertFalse($this->calculator->canCalculate('SKU-008', -5));
     }
 
     public function testCannotCalculateWithNoStock(): void
     {
-        $this->mockStockRecordService
-            ->method('getStockRecordsForSku')
-            ->willReturn([])
-        ;
-
-        $this->assertFalse($this->calculator->canCalculate('SKU-001', 10));
+        $this->assertFalse($this->calculator->canCalculate('SKU-009', 10));
     }
 
     public function testRecalculateMultipleSkus(): void
     {
-        $this->mockStockRecordService
-            ->method('getCurrentStock')
-            ->willReturnMap([
-                ['SKU-001', 100],
-                ['SKU-002', 50],
-                ['SKU-003', 0],
-            ])
-        ;
+        $this->createStockRecord('SKU-010', '2024-01-01', 100, 10.00, 100);
+        $this->createStockRecord('SKU-011', '2024-01-01', 50, 15.00, 50);
 
-        $this->mockStockRecordService
-            ->method('getStockRecordsForSku')
-            ->willReturnCallback(function (string $sku) {
-                return match ($sku) {
-                    'SKU-001' => [$this->createStockRecord('2024-01-01', 100, 10.00, 100)],
-                    'SKU-002' => [$this->createStockRecord('2024-01-01', 50, 15.00, 50)],
-                    default => [],
-                };
-            })
-        ;
-
-        $results = $this->calculator->recalculate(['SKU-001', 'SKU-002', 'SKU-003']);
+        $results = $this->calculator->recalculate(['SKU-010', 'SKU-011', 'SKU-012']);
 
         $this->assertCount(2, $results);
-        $this->assertEquals('SKU-001', $results[0]->getSku());
-        $this->assertEquals('SKU-002', $results[1]->getSku());
+        $this->assertEquals('SKU-010', $results[0]->getSku());
+        $this->assertEquals('SKU-011', $results[1]->getSku());
     }
 
     public function testCalculateWithComplexWeightedAverage(): void
     {
-        $stockRecords = [
-            $this->createStockRecord('2024-01-01', 40, 10.00, 40),
-            $this->createStockRecord('2024-01-02', 30, 15.00, 30),
-            $this->createStockRecord('2024-01-03', 30, 20.00, 30),
-        ];
+        $this->createStockRecord('SKU-013', '2024-01-01', 40, 10.00, 40);
+        $this->createStockRecord('SKU-013', '2024-01-02', 30, 15.00, 30);
+        $this->createStockRecord('SKU-013', '2024-01-03', 30, 20.00, 30);
 
-        $this->mockStockRecordService
-            ->method('getStockRecordsForSku')
-            ->willReturn($stockRecords)
-        ;
-
-        $result = $this->calculator->calculate('SKU-007', 70);
+        $result = $this->calculator->calculate('SKU-013', 70);
 
         $expectedWeightedAverage = (40 * 10.00 + 30 * 15.00 + 30 * 20.00) / 100;
         $this->assertEquals($expectedWeightedAverage, $result->getUnitCost());
         $this->assertEquals($expectedWeightedAverage * 70, $result->getTotalCost());
     }
 
-    private function createStockRecord(string $date, int $currentQuantity, float $unitCost, int $originalQuantity): StockRecord
-    {
+    private function createStockRecord(
+        string $sku,
+        string $date,
+        int $currentQuantity,
+        float $unitCost,
+        int $originalQuantity
+    ): StockRecord {
         $record = new StockRecord();
-        $record->setSku('TEST-SKU');
+        $record->setSku($sku);
         $record->setRecordDate(new \DateTimeImmutable($date));
         $record->setCurrentQuantity($currentQuantity);
         $record->setUnitCost($unitCost);
         $record->setOriginalQuantity($originalQuantity);
+
+        self::getEntityManager()->persist($record);
+        self::getEntityManager()->flush();
 
         return $record;
     }

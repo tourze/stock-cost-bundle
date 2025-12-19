@@ -20,14 +20,11 @@ class StockCostBundleTest extends AbstractBundleTestCase
 {
     public function testBundleCanBeInstantiated(): void
     {
-        // 验证Bundle可以被实例化并符合接口约定
-        // @phpstan-ignore integrationTest.noDirectInstantiationOfCoveredClass
-        $bundle = new StockCostBundle();
-
-        $this->assertInstanceOf(StockCostBundle::class, $bundle);
-        $this->assertInstanceOf(Bundle::class, $bundle);
-        $this->assertInstanceOf(BundleDependencyInterface::class, $bundle);
-        $this->assertEquals('StockCostBundle', $bundle->getName());
+        // 从容器获取kernel.bundles参数验证Bundle已注册
+        $bundles = self::getContainer()->getParameter('kernel.bundles');
+        $this->assertIsArray($bundles);
+        $this->assertArrayHasKey('StockCostBundle', $bundles);
+        $this->assertEquals(StockCostBundle::class, $bundles['StockCostBundle']);
     }
 
     public function testBundleHasCorrectDependencies(): void

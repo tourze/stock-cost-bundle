@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Tourze\StockCostBundle\Tests\Service\Calculator;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use Tourze\PHPUnitSymfonyKernelTest\AbstractIntegrationTestCase;
+use Tourze\StockCostBundle\Entity\StockRecord;
 use Tourze\StockCostBundle\Enum\CostStrategy;
 use Tourze\StockCostBundle\Model\CostCalculationResult;
 use Tourze\StockCostBundle\Service\Calculator\StandardCostCalculator;
@@ -17,22 +19,20 @@ use Tourze\StockCostBundle\Service\StockRecordServiceInterface;
  * @internal
  */
 #[CoversClass(StandardCostCalculator::class)]
-class StandardCostCalculatorTest extends TestCase
+#[RunTestsInSeparateProcesses]
+final class StandardCostCalculatorTest extends AbstractIntegrationTestCase
 {
     private StandardCostCalculator $calculator;
 
-    private StandardCostServiceInterface $mockStandardCostService;
+    private StandardCostServiceInterface $standardCostService;
 
-    private StockRecordServiceInterface $mockStockRecordService;
+    private StockRecordServiceInterface $stockRecordService;
 
-    protected function setUp(): void
+    protected function onSetUp(): void
     {
-        $this->mockStandardCostService = $this->createMock(StandardCostServiceInterface::class);
-        $this->mockStockRecordService = $this->createMock(StockRecordServiceInterface::class);
-        $this->calculator = new StandardCostCalculator(
-            $this->mockStandardCostService,
-            $this->mockStockRecordService
-        );
+        $this->calculator = self::getContainer()->get(StandardCostCalculator::class);
+        $this->standardCostService = self::getContainer()->get(StandardCostServiceInterface::class);
+        $this->stockRecordService = self::getContainer()->get(StockRecordServiceInterface::class);
     }
 
     public function testImplementsInterface(): void
@@ -59,12 +59,7 @@ class StandardCostCalculatorTest extends TestCase
 
     public function testCalculateWithStandardCost(): void
     {
-        $this->mockStandardCostService
-            ->expects($this->once())
-            ->method('getStandardCost')
-            ->with('SKU-001')
-            ->willReturn(15.50)
-        ;
+        $this->standardCostService->setStandardCost('SKU-001', 15.50);
 
         $result = $this->calculator->calculate('SKU-001', 100);
 
@@ -79,11 +74,7 @@ class StandardCostCalculatorTest extends TestCase
 
     public function testCalculateWithZeroStandardCost(): void
     {
-        $this->mockStandardCostService
-            ->method('getStandardCost')
-            ->with('SKU-002')
-            ->willReturn(0.00)
-        ;
+        $this->standardCostService->setStandardCost('SKU-002', 0.00);
 
         $result = $this->calculator->calculate('SKU-002', 50);
 
@@ -94,12 +85,6 @@ class StandardCostCalculatorTest extends TestCase
 
     public function testCalculateWithNullStandardCost(): void
     {
-        $this->mockStandardCostService
-            ->method('getStandardCost')
-            ->with('SKU-003')
-            ->willReturn(null)
-        ;
-
         $result = $this->calculator->calculate('SKU-003', 75);
 
         $this->assertEquals(0.00, $result->getUnitCost());
@@ -109,67 +94,42 @@ class StandardCostCalculatorTest extends TestCase
 
     public function testCanCalculateWithStandardCost(): void
     {
-        $this->mockStandardCostService
-            ->method('hasStandardCost')
-            ->with('SKU-001')
-            ->willReturn(true)
-        ;
+        $this->standardCostService->setStandardCost('SKU-004', 10.00);
 
-        $this->assertTrue($this->calculator->canCalculate('SKU-001', 30));
+        $this->assertTrue($this->calculator->canCalculate('SKU-004', 30));
     }
 
     public function testCannotCalculateWithZeroQuantity(): void
     {
-        $this->assertFalse($this->calculator->canCalculate('SKU-001', 0));
-        $this->assertFalse($this->calculator->canCalculate('SKU-001', -5));
+        $this->assertFalse($this->calculator->canCalculate('SKU-005', 0));
+        $this->assertFalse($this->calculator->canCalculate('SKU-005', -5));
     }
 
     public function testCannotCalculateWithoutStandardCost(): void
     {
-        $this->mockStandardCostService
-            ->method('hasStandardCost')
-            ->with('SKU-002')
-            ->willReturn(false)
-        ;
-
-        $this->assertFalse($this->calculator->canCalculate('SKU-002', 10));
+        $this->assertFalse($this->calculator->canCalculate('SKU-006', 10));
     }
 
     public function testRecalculateMultipleSkus(): void
     {
-        $this->mockStockRecordService
-            ->method('getCurrentStock')
-            ->willReturnMap([
-                ['SKU-001', 100],
-                ['SKU-002', 50],
-                ['SKU-003', 0],
-            ])
-        ;
+        $this->createStockRecord('SKU-007', '2024-01-01', 100, 8.00, 100);
+        $this->createStockRecord('SKU-008', '2024-01-01', 50, 12.00, 50);
 
-        $this->mockStandardCostService
-            ->method('getStandardCost')
-            ->willReturnMap([
-                ['SKU-001', 10.00],
-                ['SKU-002', 15.00],
-            ])
-        ;
+        $this->standardCostService->setStandardCost('SKU-007', 10.00);
+        $this->standardCostService->setStandardCost('SKU-008', 15.00);
 
-        $results = $this->calculator->recalculate(['SKU-001', 'SKU-002', 'SKU-003']);
+        $results = $this->calculator->recalculate(['SKU-007', 'SKU-008', 'SKU-009']);
 
         $this->assertCount(2, $results);
-        $this->assertEquals('SKU-001', $results[0]->getSku());
-        $this->assertEquals('SKU-002', $results[1]->getSku());
+        $this->assertEquals('SKU-007', $results[0]->getSku());
+        $this->assertEquals('SKU-008', $results[1]->getSku());
     }
 
     public function testCalculateWithVariance(): void
     {
-        $this->mockStandardCostService
-            ->method('getStandardCost')
-            ->with('SKU-001')
-            ->willReturn(10.00)
-        ;
+        $this->standardCostService->setStandardCost('SKU-010', 10.00);
 
-        $result = $this->calculator->calculate('SKU-001', 100);
+        $result = $this->calculator->calculate('SKU-010', 100);
 
         $details = $result->getCalculationDetails();
         $this->assertArrayHasKey('standardCost', $details);
@@ -180,13 +140,9 @@ class StandardCostCalculatorTest extends TestCase
 
     public function testCalculateWithHighPrecision(): void
     {
-        $this->mockStandardCostService
-            ->method('getStandardCost')
-            ->with('SKU-004')
-            ->willReturn(12.345)
-        ;
+        $this->standardCostService->setStandardCost('SKU-011', 12.345);
 
-        $result = $this->calculator->calculate('SKU-004', 100);
+        $result = $this->calculator->calculate('SKU-011', 100);
 
         $this->assertEquals(12.345, $result->getUnitCost());
         $this->assertEquals(1234.50, $result->getTotalCost());
@@ -194,15 +150,31 @@ class StandardCostCalculatorTest extends TestCase
 
     public function testCalculateWithLargeQuantity(): void
     {
-        $this->mockStandardCostService
-            ->method('getStandardCost')
-            ->with('SKU-005')
-            ->willReturn(0.01)
-        ;
+        $this->standardCostService->setStandardCost('SKU-012', 0.01);
 
-        $result = $this->calculator->calculate('SKU-005', 100000);
+        $result = $this->calculator->calculate('SKU-012', 100000);
 
         $this->assertEquals(0.01, $result->getUnitCost());
         $this->assertEquals(1000.00, $result->getTotalCost());
+    }
+
+    private function createStockRecord(
+        string $sku,
+        string $date,
+        int $currentQuantity,
+        float $unitCost,
+        int $originalQuantity
+    ): StockRecord {
+        $record = new StockRecord();
+        $record->setSku($sku);
+        $record->setRecordDate(new \DateTimeImmutable($date));
+        $record->setCurrentQuantity($currentQuantity);
+        $record->setUnitCost($unitCost);
+        $record->setOriginalQuantity($originalQuantity);
+
+        self::getEntityManager()->persist($record);
+        self::getEntityManager()->flush();
+
+        return $record;
     }
 }

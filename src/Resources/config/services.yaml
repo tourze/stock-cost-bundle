@@ -1,29 +1,23 @@
 services:
-  # default configuration for services in *this* file
   _defaults:
-    autowire: true      # Automatically injects dependencies in your services.
-    autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
+    autowire: true
+    autoconfigure: true
     public: false
 
-  Tourze\StockCostBundle\Service\:
-    resource: '../../Service/'
-
-  Tourze\StockCostBundle\Repository\:
-    resource: '../../Repository/'
-
-  Tourze\StockCostBundle\EventListener\:
-    resource: '../../EventListener/'
-
-  # CRUD控制器
   Tourze\StockCostBundle\Controller\:
     resource: '../../Controller/'
-    tags: ['controller.service_arguments']
+  Tourze\StockCostBundle\Repository\:
+    resource: '../../Repository/'
+  Tourze\StockCostBundle\Service\:
+    resource: '../../Service/'
+    public: true
+  Tourze\StockCostBundle\EventListener\:
+    resource: '../../EventListener/'
+    public: true
+  Tourze\StockCostBundle\Validator\:
+    resource: '../../Validator/'
 
-  # 成本计算器
-  Tourze\StockCostBundle\Service\Calculator\:
-    resource: '../../Service/Calculator/'
-
-  # 成本服务配置
+  # 成本服务配置（需要显式注入计算器列表）
   Tourze\StockCostBundle\Service\CostService:
     arguments:
       $calculators:
@@ -31,7 +25,3 @@ services:
         - '@Tourze\StockCostBundle\Service\Calculator\LifoCostCalculator'
         - '@Tourze\StockCostBundle\Service\Calculator\WeightedAverageCostCalculator'
         - '@Tourze\StockCostBundle\Service\Calculator\StandardCostCalculator'
-
-  # 成本记录服务（需要显式声明以支持测试）
-  Tourze\StockCostBundle\Service\CostRecordService:
-    public: true
